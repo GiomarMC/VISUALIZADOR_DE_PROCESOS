@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block titulo %}Tabla{% endblock %}
+
+{% block contenido %}
+    
+<div class="card">
+    <div class="card-header">
+        Lista de Procesos del Sistema
+    </div>
+    <div class="card-body">
+        <h4 class="card-title">Procesos</h4>
+        <div class="table-responsive">
+            <table class="table table-primary">
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">PID</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Prioridad</th>
+                        <th scope="col">CPU</th>
+                        <th scope="col">Memoria</th>
+                        <th scope="col">Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for proceso in procesos %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>{{ proceso.pid }}</td>
+                        <td>{{ proceso.name }}</td>
+                        <td>{{ proceso.nice }}</td>
+                        <td>{{ proceso.cpu_percent }}</td>
+                        <td>{{ proceso.memory_info.rss|default:"N/A" }}</td>
+                        <td>{{ proceso.status }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}
