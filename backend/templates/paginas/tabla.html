@@ -18,6 +18,8 @@
                         <th scope="col">PID</th>
                         <th scope="col">Nombre</th>
                         <th scope="col">Prioridad</th>
+                        <th scope="col">Tiempo de llegada</th>
+                        <th scope="col">Tiempo de ejecucion</th>
                         <th scope="col">CPU</th>
                         <th scope="col">Memoria</th>
                         <th scope="col">Estado</th>
@@ -30,6 +32,8 @@
                         <td>{{ proceso.pid }}</td>
                         <td>{{ proceso.name }}</td>
                         <td>{{ proceso.nice }}</td>
+                        <td>{{ proceso.arrival_time }}</td>
+                        <td>{{ proceso.time_execution }}</td>
                         <td>{{ proceso.cpu_percent }}</td>
                         <td>{{ proceso.memory_info.rss|default:"N/A" }}</td>
                         <td>{{ proceso.status }}</td>
