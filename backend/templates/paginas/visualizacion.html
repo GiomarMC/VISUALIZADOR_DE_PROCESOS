@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+
+{% block titulo %}Simulación de Procesos{% endblock %}
+
+{% block contenido %}
+<div class="card">
+    <div class="card-header">Simulación de Procesos</div>
+    <div class="card-body">
+        <h4 class="card-title">Estado de Procesos</h4>
+
+        <!-- Contenedor de Notificaciones -->
+        <div id="notificaciones" class="notificaciones text-info">Notificaciones aparecerán aquí</div>
+
+        <!-- Contenedor Principal -->
+        <div id="contenedorNucleos" class="row d-flex justify-content-around"></div>
+    </div>
+</div>
+<style>
+    /* Estilos Personalizados */
+    .proceso {
+        position: relative;
+        transition: all 0.5s ease;
+    }
+    
+    .barraProgreso {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 5px;
+        width: 0%;
+        background-color: transparent;
+    }
+    
+    .nucleo {
+        margin: 10px;
+        padding: 15px;
+        text-align: center;
+        box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.2);
+        transition: transform 0.5s ease;
+    }
+    
+    .nucleo:hover {
+        transform: scale(1.05);
+    }
+    
+    .card-header, .card-title, h5 {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        text-transform: uppercase;
+    }
+    
+    .text-info {
+        font-weight: bold;
+        color: #0366d6;
+    }
+    
+    #contenedorNucleos {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-around;
+    }
+
+    .notificaciones {
+        width: 100%;
+        text-align: center;
+        padding: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        background-color: #f9f9f9;
+        color: #0366d6;
+        border-bottom: 2px solid #0366d6;
+        margin-bottom: 15px;
+    }
+
+    .btn-agregar {
+        background-color: #28a745;
+        color: white;
+        padding: 5px 10px;
+        font-size: 14px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+    }
+
+    .btn-agregar:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+    }
+
+    .btn-eliminar {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        font-size: 14px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 5px;
+    }
+
+    .btn-eliminar:hover {
+        background-color: #c82333;
+    }
+    
+</style>
+    
+
+<!-- Carga de Librerías -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<script>
+let procesos = [];
+let nucleos = [[], [], [], []];
+let coloresNucleos = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'];
+let algoritmos = ["Round Robin", "SJF", "FCFS", "Prioridad"];
+let quantum = 3;
+
+fetch("{% url 'datos_procesos' %}")
+    .then(response => response.json())
+    .then(data => {
+        procesos = data.procesos.filter(p => p.time_execution > 0);
+        console.log("Procesos cargados correctamente:", procesos.length);
+        inicializarNucleos();
+        iniciarSimulacion();
+    })
+    .catch(error => console.error('Error al cargar datos:', error));
+
+function inicializarNucleos() {
+    procesos.forEach((proceso, index) => {
+        let nucleoIndex = index % 4;
+        if (nucleos[nucleoIndex].length < 10) {
+            nucleos[nucleoIndex].push(proceso);
+        }
+    });
+    actualizarVista();
+}
+
+function iniciarSimulacion() {
+    nucleos.forEach((_, nucleo) => procesarCola(nucleo));
+    setInterval(balancearCarga, 3000);
+}
+
+async function procesarCola(nucleo) {
+    if (nucleos[nucleo].length > 0) {
+        actualizarVista();
+
+        while (nucleos[nucleo].length > 0) {
+            let proceso = nucleos[nucleo].shift();
+
+            if (proceso && proceso.time_execution > 0) {
+                let tiempoEjecucion = obtenerTiempoEjecucion(proceso, nucleo);
+                await manejarEjecucion(proceso, nucleo, tiempoEjecucion);
+
+                if (proceso.time_execution > 0) {
+                    nucleos[nucleo].push(proceso);
+                }
+            }
+
+            actualizarVista();
+        }
+    }
+}
+
+function obtenerTiempoEjecucion(proceso, nucleo) {
+    switch (nucleo) {
+        case 0: return Math.min(proceso.time_execution, quantum); // Round Robin
+        case 1: return proceso.time_execution;  // SJF
+        case 2: return proceso.time_execution;  // FCFS
+        case 3: return proceso.time_execution;  // Prioridad
+        default: return proceso.time_execution;
+    }
+}
+
+async function manejarEjecucion(proceso, nucleo, tiempo) {
+    console.log(`[Inicio] Ejecutando PID ${proceso.pid} en núcleo ${nucleo + 1} por ${tiempo}s`);
+    mostrarNotificacion(`[Ejecución] Núcleo ${nucleo + 1}: PID ${proceso.pid}, Ejecutando ${tiempo}s`);
+
+    await resaltarProcesoEnEjecucion(proceso, nucleo, tiempo);
+    proceso.time_execution -= tiempo;
+
+    console.log(`[Fin] PID ${proceso.pid} actualizado, tiempo restante: ${proceso.time_execution}`);
+    mostrarNotificacion(`[Completado] Núcleo ${nucleo + 1}: PID ${proceso.pid}`);
+}
+
+function actualizarVista() {
+    const contenedor = d3.select("#contenedorNucleos");
+    contenedor.selectAll(".nucleo").remove();
+
+    nucleos.forEach((nucleo, index) => {
+        const nucleoDiv = contenedor.append("div")
+            .attr("class", "nucleo col-2 border rounded p-3")
+            .style("background-color", coloresNucleos[index])
+            .style("color", "#fff");
+
+        nucleoDiv.append("h5").text(`Núcleo ${index + 1} - ${algoritmos[index]}`);
+
+        nucleoDiv.append("button")
+            .attr("class", "btn-agregar")
+            .attr("id", `btn-agregar-${index}`)
+            .text("Agregar Proceso")
+            .on("click", () => agregarProceso(index));
+
+        const listaProcesos = nucleoDiv.append("div").attr("class", "listaProcesos");
+
+        listaProcesos.selectAll("div.proceso")
+            .data(nucleo, d => d.pid)
+            .join(
+                enter => enter.append("div")
+                    .attr("class", "proceso my-2 p-2 rounded shadow-sm")
+                    .style("background-color", "#FFF")
+                    .style("color", "#000")
+                    .style("border", "1px solid #ccc")
+                    .html(d => `
+                        <strong>PID:</strong> ${d.pid}<br>
+                        <strong>Tiempo:</strong> ${d.time_execution}<br>
+                        <strong>Prioridad:</strong> ${d.nice}<br>
+                        <button class="btn-eliminar" onclick="eliminarProceso(${index}, ${d.pid})">
+                            Eliminar
+                        </button>
+                    `),
+                update => update,
+                exit => exit.remove()
+            );
+    });
+}
+
+function eliminarProceso(nucleo, pid) {
+    const indiceProceso = nucleos[nucleo].findIndex(p => p.pid === pid);
+
+    if (indiceProceso !== -1) {
+        const procesoEliminado = nucleos[nucleo].splice(indiceProceso, 1)[0];
+        mostrarNotificacion(`[Eliminar] Proceso PID ${pid} eliminado del Núcleo ${nucleo + 1}`);
+        console.log(`Proceso eliminado:`, procesoEliminado);
+
+        actualizarVista();
+    } else {
+        console.error(`Proceso PID ${pid} no encontrado en Núcleo ${nucleo + 1}`);
+    }
+}
+
+function agregarProceso(nucleo) {
+    procesos = procesos.filter(p => p.time_execution > 0);
+
+    if (procesos.length > 0) {
+        const nuevoProceso = procesos.shift();
+
+        if (nuevoProceso.time_execution > 0) {
+            nucleos[nucleo].push(nuevoProceso);
+            mostrarNotificacion(`[Agregar] Núcleo ${nucleo + 1}: PID ${nuevoProceso.pid} añadido`);
+            console.log(`Proceso agregado a núcleo ${nucleo + 1}:`, nuevoProceso);
+
+            actualizarVista();  
+            procesarCola(nucleo);
+        } else {
+            console.error("Proceso con tiempo de ejecución inválido detectado:", nuevoProceso);
+        }
+    } else {
+        mostrarNotificacion("No hay más procesos disponibles en la cola global.");
+    }
+
+    verificarProcesosDisponibles();
+}
+
+function verificarProcesosDisponibles() {
+    const botonesAgregar = d3.selectAll(".btn-agregar");
+    botonesAgregar.each(function () {
+        const boton = d3.select(this);
+        if (procesos.length > 0) {
+            boton.attr("disabled", null);
+        } else {
+            boton.attr("disabled", true);
+        }
+    });
+}
+
+
+async function ejecutarRoundRobin(nucleo) {
+    while (nucleos[nucleo].length > 0) {
+        let proceso = nucleos[nucleo].shift();
+        if (!proceso) break;
+
+        let tiempoEjecucion = Math.min(proceso.time_execution, quantum);
+
+        resaltarProcesoEnEjecucion(proceso, nucleo, tiempoEjecucion);
+        await esperar(tiempoEjecucion);
+
+        proceso.time_execution -= tiempoEjecucion;
+
+        if (proceso.time_execution > 0) {
+            nucleos[nucleo].push(proceso);
+        }
+
+        descolorearProceso(proceso);
+        mostrarNotificacion(`[Round Robin] Núcleo ${nucleo + 1}: PID ${proceso.pid}, Ejecutado ${tiempoEjecucion}s`);
+        actualizarVista(); 
+    }
+}
+
+async function ejecutarSJF(nucleo) {
+    while (nucleos[nucleo].length > 0) {
+        nucleos[nucleo].sort((a, b) => a.time_execution - b.time_execution);
+        let proceso = nucleos[nucleo].shift();
+        if (!proceso) break;
+
+        resaltarProcesoEnEjecucion(proceso, nucleo, proceso.time_execution);
+        mostrarNotificacion(`[SJF] Núcleo ${nucleo + 1}: PID ${proceso.pid}, Ejecutando ${proceso.time_execution}s`);
+        
+        await esperar(proceso.time_execution);
+        mostrarNotificacion(`[SJF] Núcleo ${nucleo + 1}: PID ${proceso.pid}, Completado`);
+        actualizarVista();
+    }
+}
+
+async function ejecutarFCFS(nucleo) {
+    while (nucleos[nucleo].length > 0) {
+        let proceso = nucleos[nucleo].shift();
+        if (!proceso) break;
+
+        resaltarProcesoEnEjecucion(proceso, nucleo, proceso.time_execution);
+        mostrarNotificacion(`[FCFS] Núcleo ${nucleo + 1}: PID ${proceso.pid}, Ejecutando ${proceso.time_execution}s`);
+        
+        await esperar(proceso.time_execution);
+        mostrarNotificacion(`[FCFS] Núcleo ${nucleo + 1}: PID ${proceso.pid}, Completado`);
+        actualizarVista();
+    }
+}
+
+async function ejecutarPrioridad(nucleo) {
+    while (nucleos[nucleo].length > 0) {
+        nucleos[nucleo].sort((a, b) => a.nice - b.nice);
+        let proceso = nucleos[nucleo].shift();
+        if (!proceso) break;
+
+        resaltarProcesoEnEjecucion(proceso, nucleo, proceso.time_execution);
+        mostrarNotificacion(`[Prioridad] Núcleo ${nucleo + 1}: PID ${proceso.pid}, Ejecutando ${proceso.time_execution}s`);
+        
+        await esperar(proceso.time_execution);
+        mostrarNotificacion(`[Prioridad] Núcleo ${nucleo + 1}: PID ${proceso.pid}, Completado`);
+        actualizarVista();
+    }
+}
+
+async function resaltarProcesoEnEjecucion(proceso, nucleo, tiempo) {
+    const selector = d3.selectAll(".proceso")
+        .filter(d => d && d.pid === proceso.pid)
+        .interrupt();
+
+    selector.transition()
+        .duration(200)
+        .style("background-color", coloresNucleos[nucleo])
+        .style("color", "#FFF")
+        .style("border", "2px solid #000")
+        .style("transform", "scale(1.2)");
+
+    mostrarProgreso(proceso, tiempo, nucleo);
+
+    await esperar(tiempo);
+
+    selector.transition()
+        .duration(800)
+        .style("transform", "scale(1)")
+        .style("background-color", "#FFF")
+        .style("color", "#000")
+        .style("border", "1px solid #ccc");
+}
+
+function mostrarProgreso(proceso, tiempo, nucleo) {
+    const barraProgreso = d3.selectAll(".proceso")
+        .filter(d => d && d.pid === proceso.pid)
+        .append("div")
+        .attr("class", "barraProgreso")
+        .style("position", "absolute")
+        .style("bottom", "0")
+        .style("left", "0")
+        .style("height", "5px")
+        .style("width", "0%")
+        .style("background-color", coloresNucleos[nucleo]);
+
+    barraProgreso.transition()
+        .duration(tiempo * 1000)
+        .style("width", "100%");
+}
+
+async function descolorearProceso(proceso) {
+    d3.selectAll(".proceso")
+        .filter(d => d && d.pid === proceso.pid)
+        .interrupt()
+        .transition()
+        .duration(600)
+        .style("background-color", "#FFF")
+        .style("color", "#000")
+        .style("border", "1px solid #ccc")
+        .style("opacity", 0.8)
+        .transition()
+        .duration(400)
+        .style("opacity", 1);
+}
+
+function resaltarProcesoEnNuevaCola(proceso) {
+    d3.selectAll(".proceso")
+        .filter(d => d && d.pid === proceso.pid)
+        .interrupt()
+        .transition()
+        .duration(1000)
+        .style("background-color", "limegreen")
+        .style("color", "#FFF")
+        .style("border", "2px solid #000")
+        .style("transform", "scale(1.2)")
+        .transition()
+        .duration(1000)
+        .style("transform", "scale(1)");
+}
+
+function esperar(segundos) {
+    return new Promise(resolve => setTimeout(resolve, segundos * 1000));
+}
+
+function mostrarNotificacion(mensaje) {
+    const notificaciones = document.getElementById("notificaciones");
+    notificaciones.innerHTML = mensaje;
+
+    notificaciones.classList.add("text-info", "mostrar");
+
+    setTimeout(() => {
+        notificaciones.classList.remove("mostrar");
+        notificaciones.innerHTML = "Esperando nuevas notificaciones...";
+    }, 5000);  
+}
+
+async function balancearCarga() {
+    let tamanios = nucleos.map(n => n.length);
+    let maxIndex = tamanios.indexOf(Math.max(...tamanios));
+    let minIndex = tamanios.indexOf(Math.min(...tamanios));
+
+    if (tamanios[maxIndex] - tamanios[minIndex] > 1) {
+        let procesoTransferido = nucleos[maxIndex].pop();
+
+        mostrarNotificacion(
+            `[Balanceo] PID ${procesoTransferido.pid} Transferido de Núcleo ${maxIndex + 1} a Núcleo ${minIndex + 1}`
+        );
+
+        await esperar(1);
+
+        nucleos[minIndex].push(procesoTransferido);
+        actualizarVista(); 
+
+        resaltarProcesoEnNuevaCola(procesoTransferido);
+    }
+}
+</script>
+{% endblock %}
