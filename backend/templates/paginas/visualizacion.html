@@ -146,18 +146,15 @@ async function procesarCola(nucleo) {
         actualizarVista();
 
         while (nucleos[nucleo].length > 0) {
-            let proceso = nucleos[nucleo].shift();
-
-            if (proceso && proceso.time_execution > 0) {
-                let tiempoEjecucion = obtenerTiempoEjecucion(proceso, nucleo);
-                await manejarEjecucion(proceso, nucleo, tiempoEjecucion);
-
-                if (proceso.time_execution > 0) {
-                    nucleos[nucleo].push(proceso);
-                }
+            if (nucleo === 0) {
+                await ejecutarRoundRobin(nucleo);
+            } else if (nucleo === 1) { //if nucleo is SJF, execute SJF
+                await ejecutarSJF(nucleo);
+            } else if (nucleo === 2) { //if nucleo is FCFS, execute FCFS
+                await ejecutarFCFS(nucleo);
+            } else if (nucleo === 3) { //if nucleo is Priority, execute Priority
+                await ejecutarPrioridad(nucleo);
             }
-
-            actualizarVista();
         }
     }
 }
