@@ -128,8 +128,8 @@ def verificar_colas_final(colas):
             print(f"[FINAL] Núcleo {i}: Procesos pendientes: {list(cola.queue)}")
     return todas_vacias
 
-def iniciar_simulacion():
-    procesos_globales = obtener_procesos()
+def iniciar_simulacion(procesos):
+    procesos_globales = procesos
     colas = [Queue() for _ in range(4)]
     lock = threading.Lock()
     evento_terminado = threading.Event()
